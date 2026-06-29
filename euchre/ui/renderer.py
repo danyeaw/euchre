@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 import pygame
 
 from euchre.cards import Card, Player, Rank, Suit, Team
+from euchre.ui.card_images import CardImages
 from euchre.game import (
     Action,
     DiscardAction,
@@ -18,9 +19,9 @@ from euchre.game import (
 
 WIDTH = 900
 HEIGHT = 700
-CARD_W = 64
-CARD_H = 92
-CARD_GAP = 8
+CARD_W = 90
+CARD_H = 130
+CARD_GAP = 10
 
 TABLE_GREEN = (34, 100, 50)
 WHITE = (255, 255, 255)
@@ -82,6 +83,7 @@ class Renderer:
     def __init__(self) -> None:
         pygame.font.init()
         self.layout = Layout()
+        self._images = CardImages()
         self._font = pygame.font.SysFont(None, 24)
         self._small_font = pygame.font.SysFont(None, 20)
         self._title_font = pygame.font.SysFont(None, 28)
@@ -125,7 +127,7 @@ class Renderer:
             "North": (WIDTH // 2, 100),
             "East": (WIDTH - 120, HEIGHT // 2 - 40),
             "West": (120, HEIGHT // 2 - 40),
-            "South": (WIDTH // 2, HEIGHT - 180),
+            "South": (WIDTH // 2, HEIGHT - 220),
         }
         for name, (x, y) in positions.items():
             player = self._player_by_name(game, name)
@@ -146,7 +148,7 @@ class Renderer:
             count = len(player.cards)
             for index in range(min(count, 5)):
                 back_rect = pygame.Rect(
-                    x - 40 + index * 12,
+                    x - 56 + index * 16,
                     y + index * 2,
                     CARD_W // 2,
                     CARD_H // 2,
@@ -160,10 +162,10 @@ class Renderer:
         if game.current_trick is None or not game.current_trick.plays:
             return
         trick_positions = {
-            "North": (WIDTH // 2, HEIGHT // 2 - 70),
-            "East": (WIDTH // 2 + 80, HEIGHT // 2),
-            "West": (WIDTH // 2 - 80, HEIGHT // 2),
-            "South": (WIDTH // 2, HEIGHT // 2 + 70),
+            "North": (WIDTH // 2, HEIGHT // 2 - 100),
+            "East": (WIDTH // 2 + 110, HEIGHT // 2),
+            "West": (WIDTH // 2 - 110, HEIGHT // 2),
+            "South": (WIDTH // 2, HEIGHT // 2 + 100),
         }
         for play in game.current_trick.plays:
             pos = trick_positions[play.player.name]
@@ -254,13 +256,11 @@ class Renderer:
         *,
         enabled: bool = True,
     ) -> None:
-        pygame.draw.rect(surface, WHITE, rect, border_radius=6)
-        pygame.draw.rect(surface, BLACK, rect, width=2, border_radius=6)
-        color = suit_color(card.suit)
-        rank_text = self._font.render(rank_label(card.rank), True, color)
-        suit_text = self._font.render(SUIT_SYMBOL[card.suit], True, color)
-        surface.blit(rank_text, (rect.x + 6, rect.y + 4))
-        surface.blit(suit_text, (rect.centerx - suit_text.get_width() // 2, rect.centery - 8))
+        image = self._images.face(card, (rect.width, rect.height))
+        if image is not None:
+            surface.blit(image, rect.topleft)
+        else:
+            self._draw_card_fallback(surface, card, rect)
         if trump is not None and card.rank == Rank.JACK:
             if card.suit == trump.bower_partner() or card.suit == trump:
                 pygame.draw.rect(surface, GOLD, rect, width=3, border_radius=6)
@@ -269,7 +269,25 @@ class Renderer:
             overlay.fill(DISABLED_OVERLAY)
             surface.blit(overlay, rect.topleft)
 
+    def _draw_card_fallback(
+        self,
+        surface: pygame.Surface,
+        card: Card,
+        rect: pygame.Rect,
+    ) -> None:
+        pygame.draw.rect(surface, WHITE, rect, border_radius=6)
+        pygame.draw.rect(surface, BLACK, rect, width=2, border_radius=6)
+        color = suit_color(card.suit)
+        rank_text = self._font.render(rank_label(card.rank), True, color)
+        suit_text = self._font.render(SUIT_SYMBOL[card.suit], True, color)
+        surface.blit(rank_text, (rect.x + 6, rect.y + 4))
+        surface.blit(suit_text, (rect.centerx - suit_text.get_width() // 2, rect.centery - 8))
+
     def _draw_card_back(self, surface: pygame.Surface, rect: pygame.Rect) -> None:
+        image = self._images.back((rect.width, rect.height))
+        if image is not None:
+            surface.blit(image, rect.topleft)
+            return
         pygame.draw.rect(surface, (40, 60, 140), rect, border_radius=4)
         pygame.draw.rect(surface, WHITE, rect, width=1, border_radius=4)
 
