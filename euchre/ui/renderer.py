@@ -4,7 +4,16 @@ from dataclasses import dataclass, field
 
 import pygame
 
-from euchre.cards import Card, Player, Rank, Suit, Team, SUIT_SYMBOL, suit_symbol
+from euchre.cards import (
+    Card,
+    Player,
+    Rank,
+    RANK_LABEL,
+    Suit,
+    Team,
+    SUIT_SYMBOL,
+    suit_symbol,
+)
 from euchre.ui.card_images import CardImages
 from euchre.ui.text import blit_text, symbol_font
 from euchre.game import (
@@ -35,16 +44,6 @@ GRAY = (120, 120, 120)
 LIGHT_GRAY = (200, 200, 200)
 GOLD = (220, 180, 40)
 DISABLED_OVERLAY = (100, 100, 100, 140)
-
-RANK_LABEL = {
-    Rank.NINE: "9",
-    Rank.TEN: "10",
-    Rank.JACK: "J",
-    Rank.QUEEN: "Q",
-    Rank.KING: "K",
-    Rank.ACE: "A",
-}
-
 
 @dataclass
 class CardHit:
@@ -240,7 +239,7 @@ class Renderer:
         return cards
 
     def _south_hand_cards(self, game: GameState) -> list[Card]:
-        human = self._player_by_name(game, "South")
+        human = next(player for player in game.players if player.is_human)
         if game.phase == Phase.DEALER_DISCARD and game.dealer.is_human:
             cards = list(game.dealer.cards)
             if game.upcard is not None:
@@ -273,15 +272,12 @@ class Renderer:
             return
         if not game.current_player.is_human:
             return
-        buttons: list[tuple[str, Action]] = [("Pass", PassAction())]
-        if game.phase == Phase.ORDERING_1 and game.upcard is not None:
-            suit_name = game.upcard.suit.name.title()
-            buttons.append((f"Order {suit_name}", OrderUpAction(game.upcard.suit)))
-        elif game.phase == Phase.ORDERING_2 and game.upcard is not None:
-            for suit in Suit:
-                if suit == game.upcard.suit:
-                    continue
-                buttons.append((suit.name.title(), OrderUpAction(suit)))
+        buttons: list[tuple[str, Action]] = []
+        for action in legal_actions(game):
+            if isinstance(action, PassAction):
+                buttons.append(("Pass", action))
+            elif isinstance(action, OrderUpAction):
+                buttons.append((action.suit.name.title(), action))
         self._place_buttons(surface, buttons, y=HEIGHT - CARD_H - 80)
 
     def _place_buttons(

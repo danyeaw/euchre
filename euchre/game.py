@@ -189,9 +189,7 @@ class GameState:
         next_player = self._next_player(self.current_player)
         if next_player == first_bidder:
             self.phase = Phase.ORDERING_2
-        self.current_player = (
-            first_bidder if next_player == first_bidder else next_player
-        )
+        self.current_player = next_player
 
     def _handle_dealer_discard(self, action: DiscardAction) -> None:
         upcard = self.upcard
