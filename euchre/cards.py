@@ -8,24 +8,19 @@ LEFT_BOWER_RANK = 15
 RIGHT_BOWER_RANK = 16
 
 
-class Color(Enum):
-    RED = 1
-    BLACK = 2
-
-
 class Suit(Enum):
     CLUBS = 1
     DIAMONDS = 2
     HEARTS = 3
     SPADES = 4
 
-    def color(self) -> Color:
-        if self in (Suit.CLUBS, Suit.SPADES):
-            return Color.BLACK
-        return Color.RED
-
     def bower_partner(self) -> Suit:
-        return next(s for s in Suit if s != self and s.color() == self.color())
+        same_color = (
+            {Suit.CLUBS, Suit.SPADES}
+            if self in (Suit.CLUBS, Suit.SPADES)
+            else {Suit.DIAMONDS, Suit.HEARTS}
+        )
+        return next(s for s in same_color if s != self)
 
 
 class Rank(Enum):
@@ -70,32 +65,24 @@ class Card:
         return self.rank.value
 
 
-@dataclass
-class Deck:
-    cards: list[Card]
-
-
-def standard_deck() -> Deck:
+def standard_deck() -> list[Card]:
     cards = [Card(suit, rank) for suit in Suit for rank in PLAYING_RANKS]
     random.shuffle(cards)
-    return Deck(cards)
-
-
-@dataclass
-class Hand:
-    cards: list[Card]
-    owner: Player
+    return cards
 
 
 class Team(Enum):
     NORTH_SOUTH = 0
     EAST_WEST = 1
 
+    def opponent(self) -> Team:
+        return Team.EAST_WEST if self == Team.NORTH_SOUTH else Team.NORTH_SOUTH
+
 
 @dataclass
 class Player:
     name: str
-    hand: Hand
+    cards: list[Card]
     is_human: bool
     team: Team
 

@@ -123,8 +123,8 @@ def main() -> None:
     while game.phase != Phase.GAME_OVER:
         show_table(game)
         human = next(player for player in game.players if player.is_human)
-        if human.hand.cards and game.phase == Phase.PLAYING and game.current_player == human:
-            show_numbered_cards("Your hand:", human.hand.cards)
+        if human.cards and game.phase == Phase.PLAYING and game.current_player == human:
+            show_numbered_cards("Your hand:", human.cards)
 
         if game.phase in (Phase.DEALING, Phase.SCORING):
             game.apply(PassAction())

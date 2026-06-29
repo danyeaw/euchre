@@ -6,7 +6,6 @@ from typing import Union
 
 from euchre.cards import (
     Card,
-    Hand,
     Play,
     Player,
     Suit,
@@ -58,7 +57,7 @@ class InvalidAction(Exception):
 def playable_cards(game: GameState) -> list[Card]:
     if game.trump is None or game.current_trick is None:
         return []
-    hand = game.current_player.hand.cards
+    hand = game.current_player.cards
     if not game.current_trick.plays:
         return list(hand)
     led_suit = game.current_trick.led_suit
@@ -87,7 +86,7 @@ def legal_actions(game: GameState) -> list[Action]:
                 if suit != game.upcard.suit
             ]
         case Phase.DEALER_DISCARD:
-            cards = list(game.dealer.hand.cards)
+            cards = list(game.dealer.cards)
             if game.upcard is not None:
                 cards.append(game.upcard)
             return [DiscardAction(card) for card in cards]
@@ -109,7 +108,7 @@ class GameState:
     tricks_won: dict[Team, int]
     score: dict[Team, int]
     current_trick: Trick | None
-    trick_history: list[Trick]
+    tricks_played: int
 
     def apply(self, action: Action) -> None:
         if self.phase not in (Phase.DEALING, Phase.SCORING, Phase.GAME_OVER):
@@ -131,24 +130,23 @@ class GameState:
             case Phase.SCORING:
                 self._handle_scoring()
             case Phase.GAME_OVER:
-                self._handle_game_over()
+                pass
 
     def _handle_dealing(self) -> None:
-        deck = standard_deck()
-        deck_iter = iter(deck.cards)
+        deck_iter = iter(standard_deck())
 
         self.trump = None
         self.trump_caller = None
         self.upcard = None
         self.current_trick = None
-        self.trick_history = []
+        self.tricks_played = 0
         self.tricks_won = {team: 0 for team in Team}
 
         for player in self.players:
-            player.hand.cards = [next(deck_iter) for _ in range(2)]
+            player.cards = [next(deck_iter) for _ in range(2)]
 
         for player in self.players:
-            player.hand.cards.extend([next(deck_iter) for _ in range(3)])
+            player.cards.extend([next(deck_iter) for _ in range(3)])
 
         self.upcard = next(deck_iter)
         self.current_player = self.players[
@@ -166,6 +164,12 @@ class GameState:
     def _left_of_dealer(self) -> Player:
         index = self._player_index(self.dealer)
         return self.players[(index + 1) % len(self.players)]
+
+    def _rotate_dealer_and_deal(self) -> None:
+        index = self._player_index(self.dealer)
+        self.dealer = self.players[(index + 1) % len(self.players)]
+        self.phase = Phase.DEALING
+        self._handle_dealing()
 
     def _start_playing(self, trump: Suit) -> None:
         self.trump = trump
@@ -196,9 +200,9 @@ class GameState:
         if upcard is None or trump is None:
             return
 
-        self.dealer.hand.cards.append(upcard)
+        self.dealer.cards.append(upcard)
         self.upcard = None
-        self.dealer.hand.cards.remove(action.card)
+        self.dealer.cards.remove(action.card)
         self._start_playing(trump)
 
     def _handle_ordering_2(self, action: Action) -> None:
@@ -214,10 +218,7 @@ class GameState:
         first_bidder = self._left_of_dealer()
         next_player = self._next_player(self.current_player)
         if next_player == first_bidder:
-            dealer_index = self._player_index(self.dealer)
-            self.dealer = self.players[(dealer_index + 1) % len(self.players)]
-            self.phase = Phase.DEALING
-            self._handle_dealing()
+            self._rotate_dealer_and_deal()
         else:
             self.current_player = next_player
 
@@ -228,7 +229,7 @@ class GameState:
             return
 
         card = action.card
-        self.current_player.hand.cards.remove(card)
+        self.current_player.cards.remove(card)
 
         if not trick.plays:
             trick.led_suit = card.effective_suit(trump)
@@ -237,9 +238,9 @@ class GameState:
         if len(trick.plays) == 4:
             winner = trick.winner()
             self.tricks_won[winner.team] += 1
-            self.trick_history.append(trick)
+            self.tricks_played += 1
 
-            if len(self.trick_history) == 5:
+            if self.tricks_played == 5:
                 self.phase = Phase.SCORING
             else:
                 self.current_trick = Trick(plays=[], led_suit=None, trump=trump)
@@ -252,9 +253,7 @@ class GameState:
         if trump_caller is None:
             return
         calling_team = trump_caller.team
-        defending_team = (
-            Team.EAST_WEST if calling_team == Team.NORTH_SOUTH else Team.NORTH_SOUTH
-        )
+        defending_team = calling_team.opponent()
         tricks = self.tricks_won[calling_team]
 
         if tricks == 5:
@@ -267,13 +266,7 @@ class GameState:
         if self.score[Team.NORTH_SOUTH] >= 10 or self.score[Team.EAST_WEST] >= 10:
             self.phase = Phase.GAME_OVER
         else:
-            dealer_index = self._player_index(self.dealer)
-            self.dealer = self.players[(dealer_index + 1) % len(self.players)]
-            self.phase = Phase.DEALING
-            self._handle_dealing()
-
-    def _handle_game_over(self) -> None:
-        pass
+            self._rotate_dealer_and_deal()
 
 
 def create_game() -> GameState:
@@ -285,9 +278,7 @@ def create_game() -> GameState:
         ("West", False, Team.EAST_WEST),
     ]
     for name, is_human, team in specs:
-        player = Player(name=name, hand=Hand(cards=[], owner=None), is_human=is_human, team=team)
-        player.hand.owner = player
-        players.append(player)
+        players.append(Player(name=name, cards=[], is_human=is_human, team=team))
 
     dealer = players[0]
     return GameState(
@@ -301,5 +292,5 @@ def create_game() -> GameState:
         tricks_won={team: 0 for team in Team},
         score={team: 0 for team in Team},
         current_trick=None,
-        trick_history=[],
+        tricks_played=0,
     )
