@@ -7,6 +7,7 @@ from typing import Union
 from euchre.cards import (
     Card,
     Hand,
+    Play,
     Player,
     Suit,
     Team,
@@ -48,6 +49,54 @@ class PlayCardAction:
 Action = Union[PassAction, OrderUpAction, DiscardAction, PlayCardAction]
 
 
+class InvalidAction(Exception):
+    def __init__(self, action: Action) -> None:
+        self.action = action
+        super().__init__(f"Invalid action: {action!r}")
+
+
+def playable_cards(game: GameState) -> list[Card]:
+    if game.trump is None or game.current_trick is None:
+        return []
+    hand = game.current_player.hand.cards
+    if not game.current_trick.plays:
+        return list(hand)
+    led_suit = game.current_trick.led_suit
+    if led_suit is None:
+        return list(hand)
+    following = [
+        card for card in hand if card.effective_suit(game.trump) == led_suit
+    ]
+    return following if following else list(hand)
+
+
+def legal_actions(game: GameState) -> list[Action]:
+    match game.phase:
+        case Phase.DEALING:
+            return [PassAction()]
+        case Phase.ORDERING_1:
+            if game.upcard is None:
+                return []
+            return [PassAction(), OrderUpAction(game.upcard.suit)]
+        case Phase.ORDERING_2:
+            if game.upcard is None:
+                return []
+            return [PassAction()] + [
+                OrderUpAction(suit)
+                for suit in Suit
+                if suit != game.upcard.suit
+            ]
+        case Phase.DEALER_DISCARD:
+            cards = list(game.dealer.hand.cards)
+            if game.upcard is not None:
+                cards.append(game.upcard)
+            return [DiscardAction(card) for card in cards]
+        case Phase.PLAYING:
+            return [PlayCardAction(card) for card in playable_cards(game)]
+        case Phase.SCORING | Phase.GAME_OVER:
+            return []
+
+
 @dataclass
 class GameState:
     players: list[Player]
@@ -63,17 +112,22 @@ class GameState:
     trick_history: list[Trick]
 
     def apply(self, action: Action) -> None:
+        if self.phase not in (Phase.DEALING, Phase.SCORING, Phase.GAME_OVER):
+            if action not in legal_actions(self):
+                raise InvalidAction(action)
         match self.phase:
             case Phase.DEALING:
                 self._handle_dealing()
             case Phase.ORDERING_1:
                 self._handle_ordering_1(action)
             case Phase.DEALER_DISCARD:
-                self._handle_dealer_discard(action)
+                if isinstance(action, DiscardAction):
+                    self._handle_dealer_discard(action)
             case Phase.ORDERING_2:
                 self._handle_ordering_2(action)
             case Phase.PLAYING:
-                self._handle_playing(action)
+                if isinstance(action, PlayCardAction):
+                    self._handle_playing(action)
             case Phase.SCORING:
                 self._handle_scoring()
             case Phase.GAME_OVER:
@@ -102,20 +156,121 @@ class GameState:
         ]
         self.phase = Phase.ORDERING_1
 
-    def _handle_ordering_1(self, action: Action) -> None:
-        raise NotImplementedError
+    def _player_index(self, player: Player) -> int:
+        return self.players.index(player)
 
-    def _handle_dealer_discard(self, action: Action) -> None:
-        raise NotImplementedError
+    def _next_player(self, player: Player) -> Player:
+        index = self._player_index(player)
+        return self.players[(index + 1) % len(self.players)]
+
+    def _left_of_dealer(self) -> Player:
+        index = self._player_index(self.dealer)
+        return self.players[(index + 1) % len(self.players)]
+
+    def _start_playing(self, trump: Suit) -> None:
+        self.trump = trump
+        self.phase = Phase.PLAYING
+        self.current_player = self._left_of_dealer()
+        self.current_trick = Trick(plays=[], led_suit=None, trump=trump)
+
+    def _handle_ordering_1(self, action: Action) -> None:
+        if self.upcard is None:
+            return
+
+        if isinstance(action, OrderUpAction):
+            self.trump = action.suit
+            self.trump_caller = self.current_player
+            self.current_player = self.dealer
+            self.phase = Phase.DEALER_DISCARD
+            return
+
+        first_bidder = self._left_of_dealer()
+        next_player = self._next_player(self.current_player)
+        if next_player == first_bidder:
+            self.phase = Phase.ORDERING_2
+        self.current_player = first_bidder if next_player == first_bidder else next_player
+
+    def _handle_dealer_discard(self, action: DiscardAction) -> None:
+        upcard = self.upcard
+        trump = self.trump
+        if upcard is None or trump is None:
+            return
+
+        self.dealer.hand.cards.append(upcard)
+        self.upcard = None
+        self.dealer.hand.cards.remove(action.card)
+        self._start_playing(trump)
 
     def _handle_ordering_2(self, action: Action) -> None:
-        raise NotImplementedError
+        if self.upcard is None:
+            return
 
-    def _handle_playing(self, action: Action) -> None:
-        raise NotImplementedError
+        if isinstance(action, OrderUpAction):
+            self.trump = action.suit
+            self.trump_caller = self.current_player
+            self._start_playing(action.suit)
+            return
+
+        first_bidder = self._left_of_dealer()
+        next_player = self._next_player(self.current_player)
+        if next_player == first_bidder:
+            dealer_index = self._player_index(self.dealer)
+            self.dealer = self.players[(dealer_index + 1) % len(self.players)]
+            self.phase = Phase.DEALING
+            self._handle_dealing()
+        else:
+            self.current_player = next_player
+
+    def _handle_playing(self, action: PlayCardAction) -> None:
+        trump = self.trump
+        trick = self.current_trick
+        if trump is None or trick is None:
+            return
+
+        card = action.card
+        self.current_player.hand.cards.remove(card)
+
+        if not trick.plays:
+            trick.led_suit = card.effective_suit(trump)
+        trick.plays.append(Play(self.current_player, card))
+
+        if len(trick.plays) == 4:
+            winner = trick.winner()
+            self.tricks_won[winner.team] += 1
+            self.trick_history.append(trick)
+
+            if len(self.trick_history) == 5:
+                self.phase = Phase.SCORING
+            else:
+                self.current_trick = Trick(plays=[], led_suit=None, trump=trump)
+                self.current_player = winner
+        else:
+            self.current_player = self._next_player(self.current_player)
 
     def _handle_scoring(self) -> None:
-        raise NotImplementedError
+        trump_caller = self.trump_caller
+        if trump_caller is None:
+            return
+        calling_team = trump_caller.team
+        defending_team = (
+            Team.EAST_WEST if calling_team == Team.NORTH_SOUTH else Team.NORTH_SOUTH
+        )
+        tricks = self.tricks_won[calling_team]
+
+        if tricks == 5:
+            self.score[calling_team] += 2
+        elif tricks >= 3:
+            self.score[calling_team] += 1
+        else:
+            self.score[defending_team] += 2
+
+        if self.score[Team.NORTH_SOUTH] >= 10 or self.score[Team.EAST_WEST] >= 10:
+            self.phase = Phase.GAME_OVER
+        else:
+            dealer_index = self._player_index(self.dealer)
+            self.dealer = self.players[(dealer_index + 1) % len(self.players)]
+            self.phase = Phase.DEALING
+            self._handle_dealing()
 
     def _handle_game_over(self) -> None:
         pass
