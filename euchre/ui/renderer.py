@@ -4,8 +4,9 @@ from dataclasses import dataclass, field
 
 import pygame
 
-from euchre.cards import Card, Player, Rank, Suit, Team
+from euchre.cards import Card, Player, Rank, Suit, Team, SUIT_SYMBOL, suit_symbol
 from euchre.ui.card_images import CardImages
+from euchre.ui.text import blit_text, symbol_font
 from euchre.game import (
     Action,
     DiscardAction,
@@ -22,6 +23,9 @@ HEIGHT = 700
 CARD_W = 90
 CARD_H = 130
 CARD_GAP = 10
+TAKEN_CARD_W = 36
+TAKEN_CARD_H = 52
+TAKEN_STACK_GAP = 8
 
 TABLE_GREEN = (34, 100, 50)
 WHITE = (255, 255, 255)
@@ -31,13 +35,6 @@ GRAY = (120, 120, 120)
 LIGHT_GRAY = (200, 200, 200)
 GOLD = (220, 180, 40)
 DISABLED_OVERLAY = (100, 100, 100, 140)
-
-SUIT_SYMBOL = {
-    Suit.CLUBS: "♣",
-    Suit.DIAMONDS: "♦",
-    Suit.HEARTS: "♥",
-    Suit.SPADES: "♠",
-}
 
 RANK_LABEL = {
     Rank.NINE: "9",
@@ -75,6 +72,13 @@ def suit_color(suit: Suit) -> tuple[int, int, int]:
     return BLACK
 
 
+def _symbol_color(char: str) -> tuple[int, int, int]:
+    for suit, symbol in SUIT_SYMBOL.items():
+        if symbol == char:
+            return suit_color(suit)
+    return WHITE
+
+
 def rank_label(rank: Rank) -> str:
     return RANK_LABEL[rank]
 
@@ -100,7 +104,10 @@ class Renderer:
         self._draw_hud(surface, game, message)
         self._draw_players(surface, game)
         self._draw_trick(surface, game)
-        if game.upcard is not None and game.phase in (Phase.ORDERING_1, Phase.ORDERING_2):
+        if game.upcard is not None and game.phase in (
+            Phase.ORDERING_1,
+            Phase.ORDERING_2,
+        ):
             self._draw_upcard(surface, game.upcard)
         self._draw_south_hand(surface, game)
         self._draw_bid_buttons(surface, game)
@@ -109,15 +116,29 @@ class Renderer:
         return self.layout
 
     def _draw_hud(self, surface: pygame.Surface, game: GameState, message: str) -> None:
-        trump_text = game.trump.name.lower() if game.trump else "none"
+        trump_part = suit_symbol(game.trump) if game.trump is not None else "none"
         hud = (
             f"NS {game.score[Team.NORTH_SOUTH]}  |  EW {game.score[Team.EAST_WEST]}"
-            f"     Trump: {trump_text}"
+            f"     Trump: {trump_part}"
             f"     Dealer: {game.dealer.name}"
             f"     Turn: {game.current_player.name}"
         )
-        surface.blit(self._title_font.render(hud, True, WHITE), (16, 12))
-        surface.blit(self._font.render(message, True, LIGHT_GRAY), (16, 42))
+        blit_text(
+            surface,
+            (16, 12),
+            hud,
+            self._title_font,
+            WHITE,
+            symbol_color=_symbol_color,
+        )
+        blit_text(
+            surface,
+            (16, 42),
+            message,
+            self._font,
+            LIGHT_GRAY,
+            symbol_color=_symbol_color,
+        )
 
     def _player_by_name(self, game: GameState, name: str) -> Player:
         return next(player for player in game.players if player.name == name)
@@ -128,6 +149,12 @@ class Renderer:
             "East": (WIDTH - 120, HEIGHT // 2 - 40),
             "West": (120, HEIGHT // 2 - 40),
             "South": (WIDTH // 2, HEIGHT - 220),
+        }
+        taken_anchors = {
+            "North": (WIDTH // 2 - 50, 150, 1),
+            "East": (WIDTH - 200, HEIGHT // 2 - 26, -1),
+            "West": (200, HEIGHT // 2 - 26, 1),
+            "South": (WIDTH // 2 - 120, HEIGHT - 290, 1),
         }
         for name, (x, y) in positions.items():
             player = self._player_by_name(game, name)
@@ -143,6 +170,10 @@ class Renderer:
             text = self._font.render(label, True, WHITE)
             rect = text.get_rect(center=(x, y - 30))
             surface.blit(text, rect)
+            anchor_x, anchor_y, stack_dir = taken_anchors[name]
+            self._draw_taken_tricks(
+                surface, game, player, anchor_x, anchor_y, stack_direction=stack_dir
+            )
             if player.is_human:
                 continue
             count = len(player.cards)
@@ -157,6 +188,25 @@ class Renderer:
             if count > 0:
                 count_text = self._small_font.render(str(count), True, WHITE)
                 surface.blit(count_text, (x + 30, y))
+
+    def _draw_taken_tricks(
+        self,
+        surface: pygame.Surface,
+        game: GameState,
+        player: Player,
+        anchor_x: int,
+        anchor_y: int,
+        *,
+        stack_direction: int = 1,
+    ) -> None:
+        if game.phase not in (Phase.PLAYING, Phase.SCORING):
+            return
+        if not player.tricks_taken:
+            return
+        for index, card in enumerate(player.tricks_taken):
+            x = anchor_x + index * TAKEN_STACK_GAP * stack_direction
+            rect = pygame.Rect(x, anchor_y, TAKEN_CARD_W, TAKEN_CARD_H)
+            self._draw_card(surface, card, rect, game.trump)
 
     def _draw_trick(self, surface: pygame.Surface, game: GameState) -> None:
         if game.current_trick is None or not game.current_trick.plays:
@@ -174,7 +224,9 @@ class Renderer:
             self._draw_card(surface, play.card, rect, game.trump)
 
     def _draw_upcard(self, surface: pygame.Surface, card: Card) -> None:
-        rect = pygame.Rect(WIDTH // 2 - CARD_W // 2, HEIGHT // 2 - CARD_H // 2, CARD_W, CARD_H)
+        rect = pygame.Rect(
+            WIDTH // 2 - CARD_W // 2, HEIGHT // 2 - CARD_H // 2, CARD_W, CARD_H
+        )
         label = self._small_font.render("Upcard", True, GOLD)
         surface.blit(label, label.get_rect(center=(rect.centerx, rect.top - 14)))
         self._draw_card(surface, card, rect, None)
@@ -212,7 +264,9 @@ class Renderer:
             rect = pygame.Rect(start_x + index * (CARD_W + CARD_GAP), y, CARD_W, CARD_H)
             enabled = selectable and card in legal
             self._draw_card(surface, card, rect, game.trump, enabled=enabled)
-            self.layout.hand_cards.append(CardHit(card=card, rect=rect, enabled=enabled))
+            self.layout.hand_cards.append(
+                CardHit(card=card, rect=rect, enabled=enabled)
+            )
 
     def _draw_bid_buttons(self, surface: pygame.Surface, game: GameState) -> None:
         if game.phase not in (Phase.ORDERING_1, Phase.ORDERING_2):
@@ -279,9 +333,12 @@ class Renderer:
         pygame.draw.rect(surface, BLACK, rect, width=2, border_radius=6)
         color = suit_color(card.suit)
         rank_text = self._font.render(rank_label(card.rank), True, color)
-        suit_text = self._font.render(SUIT_SYMBOL[card.suit], True, color)
+        sym_font = symbol_font(self._font.get_height())
+        suit_text = sym_font.render(suit_symbol(card.suit), True, color)
         surface.blit(rank_text, (rect.x + 6, rect.y + 4))
-        surface.blit(suit_text, (rect.centerx - suit_text.get_width() // 2, rect.centery - 8))
+        surface.blit(
+            suit_text, (rect.centerx - suit_text.get_width() // 2, rect.centery - 8)
+        )
 
     def _draw_card_back(self, surface: pygame.Surface, rect: pygame.Rect) -> None:
         image = self._images.back((rect.width, rect.height))

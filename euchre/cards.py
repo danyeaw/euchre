@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 LEFT_BOWER_RANK = 15
@@ -40,6 +40,30 @@ PLAYING_RANKS = (
     Rank.KING,
     Rank.ACE,
 )
+
+SUIT_SYMBOL = {
+    Suit.CLUBS: "♣",
+    Suit.DIAMONDS: "♦",
+    Suit.HEARTS: "♥",
+    Suit.SPADES: "♠",
+}
+
+RANK_LABEL = {
+    Rank.NINE: "9",
+    Rank.TEN: "10",
+    Rank.JACK: "J",
+    Rank.QUEEN: "Q",
+    Rank.KING: "K",
+    Rank.ACE: "A",
+}
+
+
+def suit_symbol(suit: Suit) -> str:
+    return SUIT_SYMBOL[suit]
+
+
+def card_label(card: Card) -> str:
+    return f"{RANK_LABEL[card.rank]}{SUIT_SYMBOL[card.suit]}"
 
 
 @dataclass
@@ -85,6 +109,7 @@ class Player:
     cards: list[Card]
     is_human: bool
     team: Team
+    tricks_taken: list[Card] = field(default_factory=list)
 
 
 @dataclass

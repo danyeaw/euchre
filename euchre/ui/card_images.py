@@ -58,7 +58,11 @@ class CardImages:
             return surface
         src_w, src_h = surface.get_size()
         dst_w, dst_h = size
-        if dst_w % src_w == 0 and dst_h % src_h == 0 and dst_w // src_w == dst_h // src_h:
+        if (
+            dst_w % src_w == 0
+            and dst_h % src_h == 0
+            and dst_w // src_w == dst_h // src_h
+        ):
             return pygame.transform.scale(surface, size)
         return pygame.transform.smoothscale(surface, size)
 

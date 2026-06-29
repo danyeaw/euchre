@@ -21,7 +21,9 @@ def is_human_turn(game: GameState) -> bool:
     return game.current_player.is_human
 
 
-def handle_event(event: pygame.event.Event, game: GameState, layout: Layout) -> Action | None:
+def handle_event(
+    event: pygame.event.Event, game: GameState, layout: Layout
+) -> Action | None:
     if event.type != pygame.MOUSEBUTTONDOWN or event.button != 1:
         return None
     if not is_human_turn(game):

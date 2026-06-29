@@ -63,9 +63,7 @@ def playable_cards(game: GameState) -> list[Card]:
     led_suit = game.current_trick.led_suit
     if led_suit is None:
         return list(hand)
-    following = [
-        card for card in hand if card.effective_suit(game.trump) == led_suit
-    ]
+    following = [card for card in hand if card.effective_suit(game.trump) == led_suit]
     return following if following else list(hand)
 
 
@@ -81,9 +79,7 @@ def legal_actions(game: GameState) -> list[Action]:
             if game.upcard is None:
                 return []
             return [PassAction()] + [
-                OrderUpAction(suit)
-                for suit in Suit
-                if suit != game.upcard.suit
+                OrderUpAction(suit) for suit in Suit if suit != game.upcard.suit
             ]
         case Phase.DEALER_DISCARD:
             cards = list(game.dealer.cards)
@@ -144,6 +140,7 @@ class GameState:
 
         for player in self.players:
             player.cards = [next(deck_iter) for _ in range(2)]
+            player.tricks_taken = []
 
         for player in self.players:
             player.cards.extend([next(deck_iter) for _ in range(3)])
@@ -192,7 +189,9 @@ class GameState:
         next_player = self._next_player(self.current_player)
         if next_player == first_bidder:
             self.phase = Phase.ORDERING_2
-        self.current_player = first_bidder if next_player == first_bidder else next_player
+        self.current_player = (
+            first_bidder if next_player == first_bidder else next_player
+        )
 
     def _handle_dealer_discard(self, action: DiscardAction) -> None:
         upcard = self.upcard
@@ -237,6 +236,8 @@ class GameState:
 
         if len(trick.plays) == 4:
             winner = trick.winner()
+            winning_card = next(p.card for p in trick.plays if p.player is winner)
+            winner.tricks_taken.append(winning_card)
             self.tricks_won[winner.team] += 1
             self.tricks_played += 1
 

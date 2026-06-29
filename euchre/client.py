@@ -4,7 +4,7 @@ import random
 
 import pygame
 
-from euchre.cards import Team
+from euchre.cards import Team, card_label, suit_symbol
 from euchre.game import (
     Action,
     DiscardAction,
@@ -19,18 +19,18 @@ from euchre.game import (
 from euchre.ui.input import apply_if_legal, handle_event, is_human_turn
 from euchre.ui.renderer import HEIGHT, WIDTH, Renderer
 
-BOT_DELAY_MS = 500
+ACTION_DELAY_MS = 1200
 
 
 def describe_action(action: Action) -> str:
     if isinstance(action, PassAction):
         return "passes"
     if isinstance(action, OrderUpAction):
-        return f"orders up {action.suit.name.lower()}"
+        return f"orders up {suit_symbol(action.suit)}"
     if isinstance(action, DiscardAction):
-        return f"discards {action.card}"
+        return f"discards {card_label(action.card)}"
     if isinstance(action, PlayCardAction):
-        return f"plays {action.card}"
+        return f"plays {card_label(action.card)}"
     return str(action)
 
 
@@ -60,6 +60,7 @@ def main() -> None:
     pending_bot_action: Action | None = None
     pending_bot_player: str | None = None
     bot_apply_at: int = 0
+    pending_phase_advance_at: int = 0
 
     while running:
         now = pygame.time.get_ticks()
@@ -73,19 +74,26 @@ def main() -> None:
                     message = f"You {describe_action(action)}"
 
         if game.phase in (Phase.DEALING, Phase.SCORING):
-            game.apply(PassAction())
             pending_bot_action = None
+            pending_bot_player = None
+            if pending_phase_advance_at == 0:
+                pending_phase_advance_at = now + ACTION_DELAY_MS
+            elif now >= pending_phase_advance_at:
+                game.apply(PassAction())
+                pending_phase_advance_at = 0
         elif game.phase != Phase.GAME_OVER and not is_human_turn(game):
+            pending_phase_advance_at = 0
             if pending_bot_action is None:
                 pending_bot_action = bot_choose_action(game)
                 pending_bot_player = game.current_player.name
-                bot_apply_at = now + BOT_DELAY_MS
+                bot_apply_at = now + ACTION_DELAY_MS
             elif now >= bot_apply_at:
                 game.apply(pending_bot_action)
                 message = f"{pending_bot_player} {describe_action(pending_bot_action)}"
                 pending_bot_action = None
                 pending_bot_player = None
         else:
+            pending_phase_advance_at = 0
             pending_bot_action = None
             pending_bot_player = None
 
