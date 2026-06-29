@@ -1,0 +1,11 @@
+[project]
+name = "euchre"
+version = "0.1.0"
+description = "A simple Euchre game in Python"
+requires-python = ">=3.10"
+dependencies = [
+    "pygame>=2.5",
+]
+
+[project.scripts]
+euchre = "euchre.client:main"

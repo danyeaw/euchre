@@ -1,4 +1,4 @@
-from euchre.cli import main
+from euchre.client import main
 
 if __name__ == "__main__":
     main()
