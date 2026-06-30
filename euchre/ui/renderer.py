@@ -27,14 +27,16 @@ from euchre.game import (
     legal_actions,
 )
 
-WIDTH = 900
-HEIGHT = 700
-CARD_W = 90
-CARD_H = 130
-CARD_GAP = 10
-TAKEN_CARD_W = 36
-TAKEN_CARD_H = 52
+WIDTH = 1024
+HEIGHT = 768
+CARD_W = 115
+CARD_H = 166
+CARD_GAP = 12
+TAKEN_CARD_W = 46
+TAKEN_CARD_H = 66
 TAKEN_STACK_GAP = 8
+BACK_CARD_W = CARD_W * 4 // 5
+BACK_CARD_H = CARD_H * 4 // 5
 
 TABLE_GREEN = (34, 100, 50)
 WHITE = (255, 255, 255)
@@ -147,13 +149,13 @@ class Renderer:
             "North": (WIDTH // 2, 100),
             "East": (WIDTH - 120, HEIGHT // 2 - 40),
             "West": (120, HEIGHT // 2 - 40),
-            "South": (WIDTH // 2, HEIGHT - 220),
+            "South": (WIDTH // 2, HEIGHT - 250),
         }
         taken_anchors = {
-            "North": (WIDTH // 2 - 50, 150, 1),
+            "North": (WIDTH // 2 - 50, 170, 1),
             "East": (WIDTH - 200, HEIGHT // 2 - 26, -1),
             "West": (200, HEIGHT // 2 - 26, 1),
-            "South": (WIDTH // 2 - 120, HEIGHT - 290, 1),
+            "South": (WIDTH // 2 - 120, HEIGHT - 310, 1),
         }
         for name, (x, y) in positions.items():
             player = self._player_by_name(game, name)
@@ -178,10 +180,10 @@ class Renderer:
             count = len(player.cards)
             for index in range(min(count, 5)):
                 back_rect = pygame.Rect(
-                    x - 56 + index * 16,
+                    x - BACK_CARD_W + index * (BACK_CARD_W // 4),
                     y + index * 2,
-                    CARD_W // 2,
-                    CARD_H // 2,
+                    BACK_CARD_W,
+                    BACK_CARD_H,
                 )
                 self._draw_card_back(surface, back_rect)
             if count > 0:
@@ -211,10 +213,10 @@ class Renderer:
         if game.current_trick is None or not game.current_trick.plays:
             return
         trick_positions = {
-            "North": (WIDTH // 2, HEIGHT // 2 - 100),
-            "East": (WIDTH // 2 + 110, HEIGHT // 2),
-            "West": (WIDTH // 2 - 110, HEIGHT // 2),
-            "South": (WIDTH // 2, HEIGHT // 2 + 100),
+            "North": (WIDTH // 2, HEIGHT // 2 - CARD_H * 3 // 4),
+            "East": (WIDTH // 2 + CARD_W + 20, HEIGHT // 2),
+            "West": (WIDTH // 2 - CARD_W - 20, HEIGHT // 2),
+            "South": (WIDTH // 2, HEIGHT // 2 + CARD_H * 3 // 4),
         }
         for play in game.current_trick.plays:
             pos = trick_positions[play.player.name]
