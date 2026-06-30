@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, auto
 
 LEFT_BOWER_RANK = 15
 RIGHT_BOWER_RANK = 16
@@ -95,17 +95,35 @@ def standard_deck() -> list[Card]:
     return cards
 
 
+class Seat(Enum):
+    NORTH = auto()
+    EAST = auto()
+    SOUTH = auto()
+    WEST = auto()
+
+
 class Team(Enum):
-    NORTH_SOUTH = 0
-    EAST_WEST = 1
+    TEAM_ONE = 0
+    TEAM_TWO = 1
 
     def opponent(self) -> Team:
-        return Team.EAST_WEST if self == Team.NORTH_SOUTH else Team.NORTH_SOUTH
+        return Team.TEAM_TWO if self == Team.TEAM_ONE else Team.TEAM_ONE
+
+
+def team_label(team: Team) -> str:
+    return "Team 1" if team == Team.TEAM_ONE else "Team 2"
+
+
+def team_color(team: Team) -> tuple[int, int, int]:
+    if team == Team.TEAM_ONE:
+        return (70, 140, 230)
+    return (230, 130, 50)
 
 
 @dataclass
 class Player:
     name: str
+    seat: Seat
     cards: list[Card]
     is_human: bool
     team: Team

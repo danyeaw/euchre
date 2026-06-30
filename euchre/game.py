@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Union
@@ -8,10 +9,26 @@ from euchre.cards import (
     Card,
     Play,
     Player,
+    Seat,
     Suit,
     Team,
     Trick,
     standard_deck,
+)
+
+BOT_NAMES = (
+    "R2-D2",
+    "C-3PO",
+    "HAL 9000",
+    "WALL-E",
+    "EVE",
+    "Bender",
+    "Rosie",
+    "Marvin",
+    "Baymax",
+    "Robby The Robot",
+    "Porygon",
+    "Johnny 5",
 )
 
 
@@ -21,6 +38,7 @@ class Phase(Enum):
     DEALER_DISCARD = auto()
     ORDERING_2 = auto()
     PLAYING = auto()
+    TRICK_RESOLVING = auto()
     SCORING = auto()
     GAME_OVER = auto()
 
@@ -88,6 +106,8 @@ def legal_actions(game: GameState) -> list[Action]:
             return [DiscardAction(card) for card in cards]
         case Phase.PLAYING:
             return [PlayCardAction(card) for card in playable_cards(game)]
+        case Phase.TRICK_RESOLVING:
+            return [PassAction()]
         case Phase.SCORING | Phase.GAME_OVER:
             return []
 
@@ -105,9 +125,15 @@ class GameState:
     score: dict[Team, int]
     current_trick: Trick | None
     tricks_played: int
+    trick_winner: Player | None
 
     def apply(self, action: Action) -> None:
-        if self.phase not in (Phase.DEALING, Phase.SCORING, Phase.GAME_OVER):
+        if self.phase not in (
+            Phase.DEALING,
+            Phase.SCORING,
+            Phase.TRICK_RESOLVING,
+            Phase.GAME_OVER,
+        ):
             if action not in legal_actions(self):
                 raise InvalidAction(action)
         match self.phase:
@@ -123,6 +149,9 @@ class GameState:
             case Phase.PLAYING:
                 if isinstance(action, PlayCardAction):
                     self._handle_playing(action)
+            case Phase.TRICK_RESOLVING:
+                if isinstance(action, PassAction):
+                    self._finalize_trick()
             case Phase.SCORING:
                 self._handle_scoring()
             case Phase.GAME_OVER:
@@ -135,6 +164,7 @@ class GameState:
         self.trump_caller = None
         self.upcard = None
         self.current_trick = None
+        self.trick_winner = None
         self.tricks_played = 0
         self.tricks_won = {team: 0 for team in Team}
 
@@ -238,14 +268,26 @@ class GameState:
             winner.tricks_taken.append(winning_card)
             self.tricks_won[winner.team] += 1
             self.tricks_played += 1
-
-            if self.tricks_played == 5:
-                self.phase = Phase.SCORING
-            else:
-                self.current_trick = Trick(plays=[], led_suit=None, trump=trump)
-                self.current_player = winner
+            self.trick_winner = winner
+            self.phase = Phase.TRICK_RESOLVING
         else:
             self.current_player = self._next_player(self.current_player)
+
+    def _finalize_trick(self) -> None:
+        trump = self.trump
+        winner = self.trick_winner
+        if trump is None or winner is None:
+            return
+
+        self.trick_winner = None
+        self.current_trick = None
+
+        if self.tricks_played == 5:
+            self.phase = Phase.SCORING
+        else:
+            self.current_trick = Trick(plays=[], led_suit=None, trump=trump)
+            self.current_player = winner
+            self.phase = Phase.PLAYING
 
     def _handle_scoring(self) -> None:
         trump_caller = self.trump_caller
@@ -262,7 +304,7 @@ class GameState:
         else:
             self.score[defending_team] += 2
 
-        if self.score[Team.NORTH_SOUTH] >= 10 or self.score[Team.EAST_WEST] >= 10:
+        if self.score[Team.TEAM_ONE] >= 10 or self.score[Team.TEAM_TWO] >= 10:
             self.phase = Phase.GAME_OVER
         else:
             self._rotate_dealer_and_deal()
@@ -270,14 +312,23 @@ class GameState:
 
 def create_game() -> GameState:
     players: list[Player] = []
+    bot_names = random.sample(BOT_NAMES, 3)
     specs = [
-        ("North", False, Team.NORTH_SOUTH),
-        ("East", False, Team.EAST_WEST),
-        ("South", True, Team.NORTH_SOUTH),
-        ("West", False, Team.EAST_WEST),
+        (Seat.NORTH, bot_names[0], False, Team.TEAM_ONE),
+        (Seat.EAST, bot_names[1], False, Team.TEAM_TWO),
+        (Seat.SOUTH, "You", True, Team.TEAM_ONE),
+        (Seat.WEST, bot_names[2], False, Team.TEAM_TWO),
     ]
-    for name, is_human, team in specs:
-        players.append(Player(name=name, cards=[], is_human=is_human, team=team))
+    for seat, name, is_human, team in specs:
+        players.append(
+            Player(
+                name=name,
+                seat=seat,
+                cards=[],
+                is_human=is_human,
+                team=team,
+            )
+        )
 
     dealer = players[0]
     return GameState(
@@ -292,4 +343,5 @@ def create_game() -> GameState:
         score={team: 0 for team in Team},
         current_trick=None,
         tricks_played=0,
+        trick_winner=None,
     )

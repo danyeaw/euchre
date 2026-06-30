@@ -4,7 +4,7 @@ import random
 
 import pygame
 
-from euchre.cards import Team, card_label, suit_symbol
+from euchre.cards import Team, card_label, suit_symbol, team_label
 from euchre.game import (
     Action,
     DiscardAction,
@@ -39,9 +39,17 @@ def bot_choose_action(game: GameState) -> Action:
 
 
 def game_over_message(game: GameState) -> str:
-    if game.score[Team.NORTH_SOUTH] >= 10:
-        return "North/South win!"
-    return "East/West win!"
+    if game.score[Team.TEAM_ONE] >= 10:
+        return f"{team_label(Team.TEAM_ONE)} wins!"
+    return f"{team_label(Team.TEAM_TWO)} wins!"
+
+
+def opening_message(game: GameState) -> str:
+    human = next(player for player in game.players if player.is_human)
+    partner = next(
+        player for player in game.players if player.team == human.team and not player.is_human
+    )
+    return f"You are on {team_label(human.team)}, partnered with {partner.name}."
 
 
 def main() -> None:
@@ -54,7 +62,7 @@ def main() -> None:
     game = create_game()
     game.apply(PassAction())
 
-    message = "You are South, partnered with North."
+    message = opening_message(game)
     running = True
 
     pending_bot_action: Action | None = None
@@ -73,7 +81,7 @@ def main() -> None:
                 if action is not None and apply_if_legal(game, action):
                     message = f"You {describe_action(action)}"
 
-        if game.phase in (Phase.DEALING, Phase.SCORING):
+        if game.phase in (Phase.DEALING, Phase.SCORING, Phase.TRICK_RESOLVING):
             pending_bot_action = None
             pending_bot_player = None
             if pending_phase_advance_at == 0:

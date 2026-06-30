@@ -9,10 +9,13 @@ from euchre.cards import (
     Player,
     Rank,
     RANK_LABEL,
+    Seat,
     Suit,
     Team,
     SUIT_SYMBOL,
     suit_symbol,
+    team_color,
+    team_label,
 )
 from euchre.ui.card_images import CardImages
 from euchre.ui.text import blit_text, symbol_font
@@ -117,64 +120,87 @@ class Renderer:
         return self.layout
 
     def _draw_hud(self, surface: pygame.Surface, game: GameState, message: str) -> None:
+        self._draw_scoreboard(surface, game)
+        self._draw_status(surface, game, message)
+
+    def _draw_scoreboard(self, surface: pygame.Surface, game: GameState) -> None:
+        box_w, box_h, gap = 200, 52, 16
+        total_w = box_w * 2 + gap
+        start_x = (WIDTH - total_w) // 2
+        y = 8
+        score_one = game.score[Team.TEAM_ONE]
+        score_two = game.score[Team.TEAM_TWO]
+        leading = score_one > score_two or score_two > score_one
+
+        for index, team in enumerate((Team.TEAM_ONE, Team.TEAM_TWO)):
+            x = start_x + index * (box_w + gap)
+            rect = pygame.Rect(x, y, box_w, box_h)
+            color = team_color(team)
+            fill = tuple(max(0, c // 4) for c in color)
+            pygame.draw.rect(surface, fill, rect, border_radius=8)
+            border_width = 3 if leading and game.score[team] == max(score_one, score_two) else 2
+            pygame.draw.rect(surface, color, rect, width=border_width, border_radius=8)
+
+            name_text = self._small_font.render(team_label(team), True, color)
+            name_rect = name_text.get_rect(midtop=(rect.centerx, rect.y + 6))
+            surface.blit(name_text, name_rect)
+
+            score_text = self._title_font.render(str(game.score[team]), True, WHITE)
+            score_rect = score_text.get_rect(midbottom=(rect.centerx, rect.bottom - 6))
+            surface.blit(score_text, score_rect)
+
+    def _draw_status(self, surface: pygame.Surface, game: GameState, message: str) -> None:
         trump_part = suit_symbol(game.trump) if game.trump is not None else "none"
-        hud = (
-            f"NS {game.score[Team.NORTH_SOUTH]}  |  EW {game.score[Team.EAST_WEST]}"
-            f"     Trump: {trump_part}"
+        status = (
+            f"Trump: {trump_part}"
             f"     Dealer: {game.dealer.name}"
             f"     Turn: {game.current_player.name}"
         )
         blit_text(
             surface,
-            (16, 12),
-            hud,
-            self._title_font,
-            WHITE,
+            (16, 68),
+            status,
+            self._font,
+            LIGHT_GRAY,
             symbol_color=_symbol_color,
         )
         blit_text(
             surface,
-            (16, 42),
+            (16, 90),
             message,
             self._font,
             LIGHT_GRAY,
             symbol_color=_symbol_color,
         )
 
-    def _player_by_name(self, game: GameState, name: str) -> Player:
-        return next(player for player in game.players if player.name == name)
-
     def _draw_players(self, surface: pygame.Surface, game: GameState) -> None:
         positions = {
-            "North": (WIDTH // 2, 100),
-            "East": (WIDTH - 120, HEIGHT // 2 - 40),
-            "West": (120, HEIGHT // 2 - 40),
-            "South": (WIDTH // 2, HEIGHT - 250),
+            Seat.NORTH: (WIDTH // 2, 100),
+            Seat.EAST: (WIDTH - 120, HEIGHT // 2 - 40),
+            Seat.WEST: (120, HEIGHT // 2 - 40),
+            Seat.SOUTH: (WIDTH // 2, HEIGHT - 250),
         }
         taken_anchors = {
-            "North": (WIDTH // 2 - 50, 170, 1),
-            "East": (WIDTH - 200, HEIGHT // 2 - 26, -1),
-            "West": (200, HEIGHT // 2 - 26, 1),
-            "South": (WIDTH // 2 - 120, HEIGHT - 310, 1),
+            Seat.NORTH: (WIDTH // 2 + 90, 95, 1),
+            Seat.EAST: (WIDTH - 300, HEIGHT // 2, -1),
+            Seat.WEST: (300, HEIGHT // 2, 1),
+            Seat.SOUTH: (WIDTH // 2 + 100, HEIGHT - 300, 1),
         }
-        for name, (x, y) in positions.items():
-            player = self._player_by_name(game, name)
+        for player in game.players:
+            x, y = positions[player.seat]
             label = player.name
             if player == game.dealer:
                 label += " (D)"
             if player == game.current_player and game.phase not in (
                 Phase.DEALING,
                 Phase.SCORING,
+                Phase.TRICK_RESOLVING,
                 Phase.GAME_OVER,
             ):
                 label += " *"
-            text = self._font.render(label, True, WHITE)
+            text = self._font.render(label, True, team_color(player.team))
             rect = text.get_rect(center=(x, y - 30))
             surface.blit(text, rect)
-            anchor_x, anchor_y, stack_dir = taken_anchors[name]
-            self._draw_taken_tricks(
-                surface, game, player, anchor_x, anchor_y, stack_direction=stack_dir
-            )
             if player.is_human:
                 continue
             count = len(player.cards)
@@ -186,9 +212,12 @@ class Renderer:
                     BACK_CARD_H,
                 )
                 self._draw_card_back(surface, back_rect)
-            if count > 0:
-                count_text = self._small_font.render(str(count), True, WHITE)
-                surface.blit(count_text, (x + 30, y))
+
+        for player in game.players:
+            anchor_x, anchor_y, stack_dir = taken_anchors[player.seat]
+            self._draw_taken_tricks(
+                surface, game, player, anchor_x, anchor_y, stack_direction=stack_dir
+            )
 
     def _draw_taken_tricks(
         self,
@@ -200,7 +229,7 @@ class Renderer:
         *,
         stack_direction: int = 1,
     ) -> None:
-        if game.phase not in (Phase.PLAYING, Phase.SCORING):
+        if game.phase not in (Phase.PLAYING, Phase.SCORING, Phase.TRICK_RESOLVING):
             return
         if not player.tricks_taken:
             return
@@ -213,16 +242,18 @@ class Renderer:
         if game.current_trick is None or not game.current_trick.plays:
             return
         trick_positions = {
-            "North": (WIDTH // 2, HEIGHT // 2 - CARD_H * 3 // 4),
-            "East": (WIDTH // 2 + CARD_W + 20, HEIGHT // 2),
-            "West": (WIDTH // 2 - CARD_W - 20, HEIGHT // 2),
-            "South": (WIDTH // 2, HEIGHT // 2 + CARD_H * 3 // 4),
+            Seat.NORTH: (WIDTH // 2, HEIGHT // 2 - CARD_H * 3 // 4),
+            Seat.EAST: (WIDTH // 2 + CARD_W + 20, HEIGHT // 2),
+            Seat.WEST: (WIDTH // 2 - CARD_W - 20, HEIGHT // 2),
+            Seat.SOUTH: (WIDTH // 2, HEIGHT // 2 + CARD_H * 3 // 4),
         }
+        winner = game.trick_winner if game.phase == Phase.TRICK_RESOLVING else None
         for play in game.current_trick.plays:
-            pos = trick_positions[play.player.name]
+            pos = trick_positions[play.player.seat]
             rect = pygame.Rect(0, 0, CARD_W, CARD_H)
             rect.center = pos
-            self._draw_card(surface, play.card, rect, game.trump)
+            enabled = winner is None or play.player is winner
+            self._draw_card(surface, play.card, rect, game.trump, enabled=enabled)
 
     def _draw_upcard(self, surface: pygame.Surface, card: Card) -> None:
         rect = pygame.Rect(
