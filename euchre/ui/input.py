@@ -14,7 +14,7 @@ from euchre.ui.renderer import Layout
 
 
 def is_human_turn(game: GameState) -> bool:
-    if game.phase in (Phase.DEALING, Phase.SCORING, Phase.TRICK_RESOLVING, Phase.GAME_OVER):
+    if not game.accepts_player_input:
         return False
     if game.phase == Phase.DEALER_DISCARD:
         return game.dealer.is_human

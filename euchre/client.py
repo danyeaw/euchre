@@ -11,7 +11,6 @@ from euchre.game import (
     GameState,
     OrderUpAction,
     PassAction,
-    Phase,
     PlayCardAction,
     create_game,
     legal_actions,
@@ -76,12 +75,12 @@ def main() -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            elif game.phase != Phase.GAME_OVER and is_human_turn(game):
+            elif not game.is_game_over and is_human_turn(game):
                 action = handle_event(event, game, renderer.layout)
                 if action is not None and apply_if_legal(game, action):
                     message = f"You {describe_action(action)}"
 
-        if game.phase in (Phase.DEALING, Phase.SCORING, Phase.TRICK_RESOLVING):
+        if game.auto_advances:
             pending_bot_action = None
             pending_bot_player = None
             if pending_phase_advance_at == 0:
@@ -89,7 +88,7 @@ def main() -> None:
             elif now >= pending_phase_advance_at:
                 game.apply(PassAction())
                 pending_phase_advance_at = 0
-        elif game.phase != Phase.GAME_OVER and not is_human_turn(game):
+        elif not game.is_game_over and not is_human_turn(game):
             pending_phase_advance_at = 0
             if pending_bot_action is None:
                 pending_bot_action = bot_choose_action(game)
@@ -105,7 +104,7 @@ def main() -> None:
             pending_bot_action = None
             pending_bot_player = None
 
-        over_text = game_over_message(game) if game.phase == Phase.GAME_OVER else None
+        over_text = game_over_message(game) if game.is_game_over else None
         renderer.draw(screen, game, message, game_over_text=over_text)
         pygame.display.flip()
         clock.tick(60)

@@ -11,6 +11,11 @@ dependencies = [
     "pygame>=2.5",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
 [project.scripts]
 euchre = "euchre.client:main"
 

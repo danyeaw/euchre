@@ -43,6 +43,12 @@ class Phase(Enum):
     GAME_OVER = auto()
 
 
+AUTO_ADVANCE_PHASES = frozenset(
+    {Phase.DEALING, Phase.SCORING, Phase.TRICK_RESOLVING}
+)
+NON_INTERACTIVE_PHASES = frozenset({*AUTO_ADVANCE_PHASES, Phase.GAME_OVER})
+
+
 @dataclass
 class PassAction:
     pass
@@ -127,13 +133,20 @@ class GameState:
     tricks_played: int
     trick_winner: Player | None
 
+    @property
+    def auto_advances(self) -> bool:
+        return self.phase in AUTO_ADVANCE_PHASES
+
+    @property
+    def accepts_player_input(self) -> bool:
+        return self.phase not in NON_INTERACTIVE_PHASES
+
+    @property
+    def is_game_over(self) -> bool:
+        return self.phase == Phase.GAME_OVER
+
     def apply(self, action: Action) -> None:
-        if self.phase not in (
-            Phase.DEALING,
-            Phase.SCORING,
-            Phase.TRICK_RESOLVING,
-            Phase.GAME_OVER,
-        ):
+        if self.phase not in NON_INTERACTIVE_PHASES:
             if action not in legal_actions(self):
                 raise InvalidAction(action)
         match self.phase:

@@ -191,12 +191,7 @@ class Renderer:
             label = player.name
             if player == game.dealer:
                 label += " (D)"
-            if player == game.current_player and game.phase not in (
-                Phase.DEALING,
-                Phase.SCORING,
-                Phase.TRICK_RESOLVING,
-                Phase.GAME_OVER,
-            ):
+            if player == game.current_player and game.accepts_player_input:
                 label += " *"
             text = self._font.render(label, True, team_color(player.team))
             rect = text.get_rect(center=(x, y - 30))
