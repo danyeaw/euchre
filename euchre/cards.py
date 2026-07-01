@@ -101,6 +101,12 @@ class Seat(Enum):
     SOUTH = auto()
     WEST = auto()
 
+    @property
+    def team(self) -> Team:
+        if self in (Seat.NORTH, Seat.SOUTH):
+            return Team.TEAM_ONE
+        return Team.TEAM_TWO
+
 
 class Team(Enum):
     TEAM_ONE = 0
@@ -126,7 +132,6 @@ class Player:
     seat: Seat
     cards: list[Card]
     is_human: bool
-    team: Team
     tricks_taken: list[Card] = field(default_factory=list)
 
 

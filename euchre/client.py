@@ -46,9 +46,11 @@ def game_over_message(game: GameState) -> str:
 def opening_message(game: GameState) -> str:
     human = next(player for player in game.players if player.is_human)
     partner = next(
-        player for player in game.players if player.team == human.team and not player.is_human
+        player
+        for player in game.players
+        if player.seat.team == human.seat.team and not player.is_human
     )
-    return f"You are on {team_label(human.team)}, partnered with {partner.name}."
+    return f"You are on {team_label(human.seat.team)}, partnered with {partner.name}."
 
 
 def main() -> None:

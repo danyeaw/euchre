@@ -53,8 +53,8 @@ def test_ordering_legal_actions() -> None:
 
 def test_playable_cards_must_follow_suit() -> None:
     trump = Suit.HEARTS
-    leader = Player("North", Seat.NORTH, [], False, Team.TEAM_ONE)
-    follower = Player("South", Seat.SOUTH, [], True, Team.TEAM_ONE)
+    leader = Player("North", Seat.NORTH, [], False)
+    follower = Player("South", Seat.SOUTH, [], True)
     heart = Card(Suit.HEARTS, Rank.NINE)
     club = Card(Suit.CLUBS, Rank.ACE)
     follower.cards = [heart, club]
@@ -84,8 +84,8 @@ def test_playable_cards_must_follow_suit() -> None:
 
 def test_trick_winner_trump_beats_led_suit() -> None:
     trump = Suit.HEARTS
-    north = Player("North", Seat.NORTH, [], False, Team.TEAM_ONE)
-    east = Player("East", Seat.EAST, [], False, Team.TEAM_TWO)
+    north = Player("North", Seat.NORTH, [], False)
+    east = Player("East", Seat.EAST, [], False)
     trick = Trick(
         plays=[
             Play(north, Card(Suit.SPADES, Rank.ACE)),

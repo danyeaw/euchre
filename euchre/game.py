@@ -279,7 +279,7 @@ class GameState:
             winner = trick.winner()
             winning_card = next(p.card for p in trick.plays if p.player is winner)
             winner.tricks_taken.append(winning_card)
-            self.tricks_won[winner.team] += 1
+            self.tricks_won[winner.seat.team] += 1
             self.tricks_played += 1
             self.trick_winner = winner
             self.phase = Phase.TRICK_RESOLVING
@@ -306,7 +306,7 @@ class GameState:
         trump_caller = self.trump_caller
         if trump_caller is None:
             return
-        calling_team = trump_caller.team
+        calling_team = trump_caller.seat.team
         defending_team = calling_team.opponent()
         tricks = self.tricks_won[calling_team]
 
@@ -327,19 +327,18 @@ def create_game() -> GameState:
     players: list[Player] = []
     bot_names = random.sample(BOT_NAMES, 3)
     specs = [
-        (Seat.NORTH, bot_names[0], False, Team.TEAM_ONE),
-        (Seat.EAST, bot_names[1], False, Team.TEAM_TWO),
-        (Seat.SOUTH, "You", True, Team.TEAM_ONE),
-        (Seat.WEST, bot_names[2], False, Team.TEAM_TWO),
+        (Seat.NORTH, bot_names[0], False),
+        (Seat.EAST, bot_names[1], False),
+        (Seat.SOUTH, "You", True),
+        (Seat.WEST, bot_names[2], False),
     ]
-    for seat, name, is_human, team in specs:
+    for seat, name, is_human in specs:
         players.append(
             Player(
                 name=name,
                 seat=seat,
                 cards=[],
                 is_human=is_human,
-                team=team,
             )
         )
 

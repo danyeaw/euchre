@@ -193,7 +193,7 @@ class Renderer:
                 label += " (D)"
             if player == game.current_player and game.accepts_player_input:
                 label += " *"
-            text = self._font.render(label, True, team_color(player.team))
+            text = self._font.render(label, True, team_color(player.seat.team))
             rect = text.get_rect(center=(x, y - 30))
             surface.blit(text, rect)
             if player.is_human:
