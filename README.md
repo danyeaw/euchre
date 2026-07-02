@@ -52,11 +52,6 @@ New to Euchre? See [How to Play Euchre](https://bicyclecards.com/how-to-play/euc
 - Play 5 tricks; calling team scores 1 point for 3–4 tricks, 2 for all 5, or gets euchred (opponents +2) for ≤2
 - First team to 10 wins
 
-## Talk / demo materials
-
-- [`docs/talk_demo.md`](docs/talk_demo.md) — REPL snippets and live-demo checklist
-- [`docs/slides.md`](docs/slides.md) — slide content for Michigan Python
-
 ## Assets
 
 Face card images are from [Webisso playing-cards](https://github.com/Webisso/playing-cards) (MIT).
