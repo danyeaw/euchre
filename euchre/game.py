@@ -47,6 +47,11 @@ AUTO_ADVANCE_PHASES = frozenset(
     {Phase.DEALING, Phase.SCORING, Phase.TRICK_RESOLVING}
 )
 NON_INTERACTIVE_PHASES = frozenset({*AUTO_ADVANCE_PHASES, Phase.GAME_OVER})
+ORDERING_PHASES = frozenset({Phase.ORDERING_1, Phase.ORDERING_2})
+HAND_INPUT_PHASES = frozenset({Phase.PLAYING, Phase.DEALER_DISCARD})
+TRICKS_VISIBLE_PHASES = frozenset(
+    {Phase.PLAYING, Phase.SCORING, Phase.TRICK_RESOLVING}
+)
 
 
 @dataclass
@@ -71,6 +76,8 @@ class PlayCardAction:
 
 Action = Union[PassAction, OrderUpAction, DiscardAction, PlayCardAction]
 
+CARD_ACTIONS = (PlayCardAction, DiscardAction)
+
 
 class InvalidAction(Exception):
     def __init__(self, action: Action) -> None:
@@ -91,6 +98,13 @@ def playable_cards(game: GameState) -> list[Card]:
     return following if following else list(hand)
 
 
+def _dealer_discard_cards(game: GameState) -> list[Card]:
+    cards = list(game.dealer.cards)
+    if game.upcard is not None:
+        cards.append(game.upcard)
+    return cards
+
+
 def legal_actions(game: GameState) -> list[Action]:
     match game.phase:
         case Phase.DEALING:
@@ -106,16 +120,36 @@ def legal_actions(game: GameState) -> list[Action]:
                 OrderUpAction(suit) for suit in Suit if suit != game.upcard.suit
             ]
         case Phase.DEALER_DISCARD:
-            cards = list(game.dealer.cards)
-            if game.upcard is not None:
-                cards.append(game.upcard)
-            return [DiscardAction(card) for card in cards]
+            return [DiscardAction(card) for card in _dealer_discard_cards(game)]
         case Phase.PLAYING:
             return [PlayCardAction(card) for card in playable_cards(game)]
         case Phase.TRICK_RESOLVING:
             return [PassAction()]
         case Phase.SCORING | Phase.GAME_OVER:
             return []
+
+
+def is_human_turn(game: GameState) -> bool:
+    if not game.accepts_player_input:
+        return False
+    if game.phase == Phase.DEALER_DISCARD:
+        return game.dealer.is_human
+    return game.current_player.is_human
+
+
+def legal_cards(game: GameState) -> list[Card]:
+    return [
+        action.card
+        for action in legal_actions(game)
+        if isinstance(action, CARD_ACTIONS)
+    ]
+
+
+def human_hand_cards(game: GameState) -> list[Card]:
+    human = next(player for player in game.players if player.is_human)
+    if game.phase == Phase.DEALER_DISCARD and game.dealer.is_human:
+        return _dealer_discard_cards(game)
+    return list(human.cards)
 
 
 @dataclass

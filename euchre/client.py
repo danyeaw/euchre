@@ -13,9 +13,10 @@ from euchre.game import (
     PassAction,
     PlayCardAction,
     create_game,
+    is_human_turn,
     legal_actions,
 )
-from euchre.ui.input import apply_if_legal, handle_event, is_human_turn
+from euchre.ui.input import apply_if_legal, handle_event
 from euchre.ui.renderer import HEIGHT, WIDTH, Renderer
 
 ACTION_DELAY_MS = 1200

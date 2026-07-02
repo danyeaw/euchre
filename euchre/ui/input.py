@@ -6,19 +6,14 @@ from euchre.game import (
     Action,
     DiscardAction,
     GameState,
+    HAND_INPUT_PHASES,
+    ORDERING_PHASES,
     Phase,
     PlayCardAction,
+    is_human_turn,
     legal_actions,
 )
 from euchre.ui.renderer import Layout
-
-
-def is_human_turn(game: GameState) -> bool:
-    if not game.accepts_player_input:
-        return False
-    if game.phase == Phase.DEALER_DISCARD:
-        return game.dealer.is_human
-    return game.current_player.is_human
 
 
 def handle_event(
@@ -30,13 +25,13 @@ def handle_event(
         return None
 
     pos = event.pos
-    if game.phase in (Phase.ORDERING_1, Phase.ORDERING_2):
+    if game.phase in ORDERING_PHASES:
         for button in layout.buttons:
             if button.rect.collidepoint(pos):
                 return button.action
         return None
 
-    if game.phase in (Phase.PLAYING, Phase.DEALER_DISCARD):
+    if game.phase in HAND_INPUT_PHASES:
         for hit in layout.hand_cards:
             if hit.enabled and hit.rect.collidepoint(pos):
                 if game.phase == Phase.PLAYING:

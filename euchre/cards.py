@@ -20,7 +20,7 @@ class Suit(Enum):
             if self in (Suit.CLUBS, Suit.SPADES)
             else {Suit.DIAMONDS, Suit.HEARTS}
         )
-        return next(s for s in same_color if s != self)
+        return next(suit for suit in same_color if suit != self)
 
 
 class Rank(Enum):
@@ -30,6 +30,26 @@ class Rank(Enum):
     QUEEN = 12
     KING = 13
     ACE = 14
+
+class Seat(Enum):
+    NORTH = auto()
+    EAST = auto()
+    SOUTH = auto()
+    WEST = auto()
+
+    @property
+    def team(self) -> Team:
+        if self in (Seat.NORTH, Seat.SOUTH):
+            return Team.TEAM_ONE
+        return Team.TEAM_TWO
+
+
+class Team(Enum):
+    TEAM_ONE = 0
+    TEAM_TWO = 1
+
+    def opponent(self) -> Team:
+        return Team.TEAM_TWO if self == Team.TEAM_ONE else Team.TEAM_ONE
 
 
 PLAYING_RANKS = (
@@ -66,14 +86,20 @@ def card_label(card: Card) -> str:
     return f"{RANK_LABEL[card.rank]}{SUIT_SYMBOL[card.suit]}"
 
 
+def team_label(team: Team) -> str:
+    return "Team 1" if team == Team.TEAM_ONE else "Team 2"
+
+
+def team_color(team: Team) -> tuple[int, int, int]:
+    if team == Team.TEAM_ONE:
+        return (70, 140, 230)
+    return (230, 130, 50)
+
+
 @dataclass
 class Card:
     suit: Suit
     rank: Rank
-
-    def __str__(self) -> str:
-        name = self.rank.name[0] if self.rank != Rank.TEN else "10"
-        return f"{name}{self.suit.name[0]}"
 
     def effective_suit(self, trump: Suit) -> Suit:
         if self.rank == Rank.JACK and self.suit == trump.bower_partner():
@@ -93,37 +119,6 @@ def standard_deck() -> list[Card]:
     cards = [Card(suit, rank) for suit in Suit for rank in PLAYING_RANKS]
     random.shuffle(cards)
     return cards
-
-
-class Seat(Enum):
-    NORTH = auto()
-    EAST = auto()
-    SOUTH = auto()
-    WEST = auto()
-
-    @property
-    def team(self) -> Team:
-        if self in (Seat.NORTH, Seat.SOUTH):
-            return Team.TEAM_ONE
-        return Team.TEAM_TWO
-
-
-class Team(Enum):
-    TEAM_ONE = 0
-    TEAM_TWO = 1
-
-    def opponent(self) -> Team:
-        return Team.TEAM_TWO if self == Team.TEAM_ONE else Team.TEAM_ONE
-
-
-def team_label(team: Team) -> str:
-    return "Team 1" if team == Team.TEAM_ONE else "Team 2"
-
-
-def team_color(team: Team) -> tuple[int, int, int]:
-    if team == Team.TEAM_ONE:
-        return (70, 140, 230)
-    return (230, 130, 50)
 
 
 @dataclass

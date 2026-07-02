@@ -21,13 +21,17 @@ from euchre.ui.card_images import CardImages
 from euchre.ui.text import blit_text, symbol_font
 from euchre.game import (
     Action,
-    DiscardAction,
     GameState,
+    HAND_INPUT_PHASES,
+    ORDERING_PHASES,
     OrderUpAction,
     PassAction,
+    TRICKS_VISIBLE_PHASES,
     Phase,
-    PlayCardAction,
+    human_hand_cards,
+    is_human_turn,
     legal_actions,
+    legal_cards,
 )
 
 WIDTH = 1024
@@ -83,10 +87,6 @@ def _symbol_color(char: str) -> tuple[int, int, int]:
     return WHITE
 
 
-def rank_label(rank: Rank) -> str:
-    return RANK_LABEL[rank]
-
-
 class Renderer:
     def __init__(self) -> None:
         pygame.font.init()
@@ -108,10 +108,7 @@ class Renderer:
         self._draw_hud(surface, game, message)
         self._draw_players(surface, game)
         self._draw_trick(surface, game)
-        if game.upcard is not None and game.phase in (
-            Phase.ORDERING_1,
-            Phase.ORDERING_2,
-        ):
+        if game.upcard is not None and game.phase in ORDERING_PHASES:
             self._draw_upcard(surface, game.upcard)
         self._draw_south_hand(surface, game)
         self._draw_bid_buttons(surface, game)
@@ -130,7 +127,7 @@ class Renderer:
         y = 8
         score_one = game.score[Team.TEAM_ONE]
         score_two = game.score[Team.TEAM_TWO]
-        leading = score_one > score_two or score_two > score_one
+        leading = score_one != score_two
 
         for index, team in enumerate((Team.TEAM_ONE, Team.TEAM_TWO)):
             x = start_x + index * (box_w + gap)
@@ -224,7 +221,7 @@ class Renderer:
         *,
         stack_direction: int = 1,
     ) -> None:
-        if game.phase not in (Phase.PLAYING, Phase.SCORING, Phase.TRICK_RESOLVING):
+        if game.phase not in TRICKS_VISIBLE_PHASES:
             return
         if not player.tricks_taken:
             return
@@ -258,32 +255,12 @@ class Renderer:
         surface.blit(label, label.get_rect(center=(rect.centerx, rect.top - 14)))
         self._draw_card(surface, card, rect, None)
 
-    def _legal_cards(self, game: GameState) -> list[Card]:
-        actions = legal_actions(game)
-        cards: list[Card] = []
-        for action in actions:
-            if isinstance(action, (PlayCardAction, DiscardAction)):
-                cards.append(action.card)
-        return cards
-
-    def _south_hand_cards(self, game: GameState) -> list[Card]:
-        human = next(player for player in game.players if player.is_human)
-        if game.phase == Phase.DEALER_DISCARD and game.dealer.is_human:
-            cards = list(game.dealer.cards)
-            if game.upcard is not None:
-                cards.append(game.upcard)
-            return cards
-        return list(human.cards)
-
     def _draw_south_hand(self, surface: pygame.Surface, game: GameState) -> None:
-        cards = self._south_hand_cards(game)
+        cards = human_hand_cards(game)
         if not cards:
             return
-        legal = self._legal_cards(game)
-        selectable = game.phase in (Phase.PLAYING, Phase.DEALER_DISCARD) and (
-            (game.phase == Phase.PLAYING and game.current_player.is_human)
-            or (game.phase == Phase.DEALER_DISCARD and game.dealer.is_human)
-        )
+        legal = legal_cards(game)
+        selectable = game.phase in HAND_INPUT_PHASES and is_human_turn(game)
         total_w = len(cards) * CARD_W + (len(cards) - 1) * CARD_GAP
         start_x = (WIDTH - total_w) // 2
         y = HEIGHT - CARD_H - 24
@@ -296,9 +273,7 @@ class Renderer:
             )
 
     def _draw_bid_buttons(self, surface: pygame.Surface, game: GameState) -> None:
-        if game.phase not in (Phase.ORDERING_1, Phase.ORDERING_2):
-            return
-        if not game.current_player.is_human:
+        if game.phase not in ORDERING_PHASES or not is_human_turn(game):
             return
         buttons: list[tuple[str, Action]] = []
         for action in legal_actions(game):
@@ -356,7 +331,7 @@ class Renderer:
         pygame.draw.rect(surface, WHITE, rect, border_radius=6)
         pygame.draw.rect(surface, BLACK, rect, width=2, border_radius=6)
         color = suit_color(card.suit)
-        rank_text = self._font.render(rank_label(card.rank), True, color)
+        rank_text = self._font.render(RANK_LABEL[card.rank], True, color)
         sym_font = symbol_font(self._font.get_height())
         suit_text = sym_font.render(suit_symbol(card.suit), True, color)
         surface.blit(rank_text, (rect.x + 6, rect.y + 4))

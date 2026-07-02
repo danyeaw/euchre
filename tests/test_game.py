@@ -4,6 +4,7 @@ import pytest
 
 from euchre.cards import Card, Play, Player, Rank, Seat, Suit, Team, Trick
 from euchre.game import (
+    DiscardAction,
     GameState,
     InvalidAction,
     OrderUpAction,
@@ -11,7 +12,10 @@ from euchre.game import (
     Phase,
     PlayCardAction,
     create_game,
+    human_hand_cards,
+    is_human_turn,
     legal_actions,
+    legal_cards,
     playable_cards,
 )
 
@@ -104,3 +108,45 @@ def test_invalid_play_raises() -> None:
 
     with pytest.raises(InvalidAction):
         game.apply(PlayCardAction(Card(Suit.CLUBS, Rank.ACE)))
+
+
+def test_is_human_turn_during_playing_and_discard() -> None:
+    game = create_game()
+    game.apply(PassAction())
+
+    assert is_human_turn(game) is False
+
+    human = next(player for player in game.players if player.is_human)
+    game.current_player = human
+    game.phase = Phase.PLAYING
+    assert is_human_turn(game) is True
+
+    game.phase = Phase.TRICK_RESOLVING
+    assert is_human_turn(game) is False
+
+
+def test_legal_cards_matches_card_actions() -> None:
+    game = create_game()
+    game.apply(PassAction())
+
+    cards = legal_cards(game)
+    expected = [
+        action.card
+        for action in legal_actions(game)
+        if isinstance(action, (PlayCardAction, DiscardAction))
+    ]
+    assert cards == expected
+
+
+def test_human_hand_cards_includes_upcard_for_human_dealer_discard() -> None:
+    game = create_game()
+    game.apply(PassAction())
+    human = next(player for player in game.players if player.is_human)
+    game.dealer = human
+    game.phase = Phase.DEALER_DISCARD
+    upcard = game.upcard
+    assert upcard is not None
+
+    hand = human_hand_cards(game)
+    assert upcard in hand
+    assert len(hand) == len(human.cards) + 1
