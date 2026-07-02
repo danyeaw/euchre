@@ -11,7 +11,6 @@ from euchre.game import (
     GameState,
     OrderUpAction,
     PassAction,
-    PlayCardAction,
     create_game,
     is_human_turn,
     legal_actions,
@@ -29,9 +28,7 @@ def describe_action(action: Action) -> str:
         return f"orders up {suit_symbol(action.suit)}"
     if isinstance(action, DiscardAction):
         return f"discards {card_label(action.card)}"
-    if isinstance(action, PlayCardAction):
-        return f"plays {card_label(action.card)}"
-    return str(action)
+    return f"plays {card_label(action.card)}"
 
 
 def bot_choose_action(game: GameState) -> Action:
